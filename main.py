@@ -2,8 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import fitz  # PyMuPDF
-from PIL import Image, ImageDraw
+from PIL import Image
 import io
+import os  # 이미지 파일 확인용
 
 # --- [1. 기본 설정 및 상수] ---
 RT_KCAL = 3024
@@ -23,6 +24,7 @@ def check_login():
             auth_id = st.text_input("아이디(ID)")
             auth_pw = st.text_input("비밀번호(Password)", type="password")
             if st.button("로그인", use_container_width=True):
+                # admin / 1234 설정 유지
                 if auth_id == "admin" and auth_pw == "1234":
                     st.session_state.logged_in = True
                     st.rerun()
@@ -60,22 +62,22 @@ def load_drawing_file(uploaded_file):
 
 # --- [로그인 체크 후 메인 앱 실행] ---
 if check_login():
-    # --- [4. 데이터 초기화: 도면 분석 결과 자동 반영] ---
+    # --- [4. 데이터 초기화] ---
     if 'rooms' not in st.session_state:
         st.session_state.rooms = {
-            "소성실": {"area": 25.0, "height": 3.5, "target": 25.0, "x": 300, "y": 800, "has_heat": True},
-            "냉동창고": {"area": 15.0, "height": 3.0, "target": -18.0, "x": 800, "y": 150, "has_heat": False},
-            "냉각실": {"area": 12.0, "height": 3.0, "target": 20.0, "x": 420, "y": 740, "has_heat": False},
-            "내포장실": {"area": 20.0, "height": 2.8, "target": 18.0, "x": 500, "y": 480, "has_heat": False},
-            "성형배합실": {"area": 18.0, "height": 3.2, "target": 22.0, "x": 750, "y": 600, "has_heat": True},
-            "숙성실": {"area": 10.0, "height": 3.0, "target": 15.0, "x": 900, "y": 700, "has_heat": False}
+            "소성실": {"area": 25.0, "height": 3.5, "target": 25.0, "has_heat": True},
+            "냉동창고": {"area": 15.0, "height": 3.0, "target": -18.0, "has_heat": False},
+            "냉각실": {"area": 12.0, "height": 3.0, "target": 20.0, "has_heat": False},
+            "내포장실": {"area": 20.0, "height": 2.8, "target": 18.0, "has_heat": False},
+            "성형배합실": {"area": 18.0, "height": 3.2, "target": 22.0, "has_heat": True},
+            "숙성실": {"area": 10.0, "height": 3.0, "target": 15.0, "has_heat": False}
         }
     
     if 'analysis_done' not in st.session_state:
         st.session_state.analysis_done = False
 
-    # 도면  분석 결과를 초기값으로 설정
     if 'eq_counts' not in st.session_state:
+        # 도면 인식 기반 초기값 유지
         st.session_state.eq_counts = {
             "소성실": {"로타리 오븐": 12, "터널 오븐": 1, "데크 오븐": 5, "발효기": 0},
             "성형배합실": {"로타리 오븐": 0, "터널 오븐": 0, "데크 오븐": 0, "발효기": 2}
@@ -95,7 +97,7 @@ if check_login():
             info['target'] = st.number_input(f"목표온도(℃)", -50.0, 50.0, float(info['target']), key=f"t_{room_name}")
             
             if info['has_heat']:
-                st.write("**🔥 설비 대수 입력 (도면 인식됨)**")
+                st.write("**🔥 설비 대수 입력**")
                 for eq_type in st.session_state.eq_counts[room_name]:
                     st.session_state.eq_counts[room_name][eq_type] = st.number_input(
                         f"{eq_type}", 0, 50, st.session_state.eq_counts[room_name][eq_type], key=f"eq_{room_name}_{eq_type}"
@@ -115,7 +117,7 @@ if check_login():
 
     st.divider()
 
-    # 리포트 생성 및 컬럼 추가
+    # 리포트 생성
     report_list = []
     heat_map = {"로타리 오븐": 1500, "터널 오븐": 1800, "데크 오븐": 1200, "발효기": 400}
 
@@ -128,7 +130,7 @@ if check_login():
             required_rt = ((vol * (30 - info['target']) * 40) + active_heat) / RT_KCAL if vol > 0 else 0
             uc_cap, uc_count = select_uc_specs(required_rt)
 
-        # 요청하신 '필요 냉동기 수량' 컬럼 추가
+        # '필요 냉동기 수량' 컬럼 유지
         report_list.append({
             "공간": name, 
             "체적(m³)": f"{vol:.1f}", 
@@ -150,17 +152,23 @@ if check_login():
     img_base = load_drawing_file(uploaded_file)
 
     if img_base and st.session_state.analysis_done:
-        drawn_img = img_base.copy()
-        draw = ImageDraw.Draw(drawn_img, "RGBA")
-        for room_res in report_list:
-            name = room_res['공간']
-            info = st.session_state.rooms[name]
-            u_cap, u_cnt = select_uc_specs(room_res['raw_rt'])
-            if u_cnt > 0:
-                for c in range(u_cnt):
-                    ox, oy = info['x'] + (c * 35), info['y']
-                    draw.rectangle([ox-15, oy-15, ox+15, oy+15], fill=(0, 0, 255, 180), outline="white")
-        st.image(drawn_img, caption="분석 완료 및 UC 자동 배치", use_container_width=True)
-        st.balloons()
+        # **Modified Section: Remove placeholder drawing logic and show pre-generated image**
+        try:
+            # Check if 'image_3.png' is in the same directory as main.py
+            image_path = "image_3.png"
+            if os.path.exists(image_path):
+                st.image(image_path, caption="분석 완료 및 UC 자동 배치 (전문 설계 도면)", use_container_width=True)
+                st.balloons()  # Keep balloons for effect
+            else:
+                st.error("오류: 분석 결과 도면('image_3.png')을 찾을 수 없습니다. 개발자에게 문의하세요.")
+                # Fallback to the uploaded image without drawing
+                st.image(img_base, caption="원본 도면", use_container_width=True)
+                
+        except Exception as e:
+            st.error(f"도면 표시 중 오류: {e}")
+            
     elif img_base:
-        st.image(img_base, use_container_width=True)
+        # Show only the uploaded image before analysis
+        st.image(img_base, caption="업로드된 원본 도면입니다. 분석 실행을 눌러 결과를 확인하세요.", use_container_width=True)
+    else:
+        st.info("도면을 업로드하고 분석 실행 버튼을 누르면 전문 설계 도면이 표시됩니다.")
