@@ -24,8 +24,9 @@ def check_login():
             auth_id = st.text_input("아이디(ID)")
             auth_pw = st.text_input("비밀번호(Password)", type="password")
             
+            # ⭐ 요청하신 아이디 admin / 비밀번호 1234 설정
             if st.button("로그인", use_container_width=True):
-                if auth_id == "admin" and auth_pw == "shinsegae123":
+                if auth_id == "admin" and auth_pw == "1234":
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
@@ -64,28 +65,28 @@ def load_drawing_file(uploaded_file):
 if check_login():
     # --- [4. 데이터 초기화] ---
     if 'rooms' not in st.session_state:
+        # 도면 내 '대경푸드빌 변경안 3층.pdf'의 위치 기준 좌표 설정
         st.session_state.rooms = {
-            "소성실": {"area": 25.0, "height": 3.5, "target": 25.0, "x": 400, "y": 800, "has_heat": True},
-            "냉동창고": {"area": 15.0, "height": 3.0, "target": -18.0, "x": 900, "y": 150, "has_heat": False},
-            "냉각실": {"area": 12.0, "height": 3.0, "target": 20.0, "x": 450, "y": 700, "has_heat": False},
-            "내포장실": {"area": 20.0, "height": 2.8, "target": 18.0, "x": 480, "y": 480, "has_heat": False},
-            "성형배합실": {"area": 18.0, "height": 3.2, "target": 22.0, "x": 800, "y": 550, "has_heat": True},
+            "소성실": {"area": 25.0, "height": 3.5, "target": 25.0, "x": 300, "y": 800, "has_heat": True},
+            "냉동창고": {"area": 15.0, "height": 3.0, "target": -18.0, "x": 800, "y": 150, "has_heat": False},
+            "냉각실": {"area": 12.0, "height": 3.0, "target": 20.0, "x": 420, "y": 740, "has_heat": False},
+            "내포장실": {"area": 20.0, "height": 2.8, "target": 18.0, "x": 500, "y": 480, "has_heat": False},
+            "성형배합실": {"area": 18.0, "height": 3.2, "target": 22.0, "x": 750, "y": 600, "has_heat": True},
             "숙성실": {"area": 10.0, "height": 3.0, "target": 15.0, "x": 900, "y": 700, "has_heat": False}
         }
     
-    # 분석 실행 여부 플래그 추가
     if 'analysis_done' not in st.session_state:
         st.session_state.analysis_done = False
 
     if 'eq_counts' not in st.session_state:
-        st.session_state.eq_counts = {room: {eq: 0 for eq in ["로터리오븐", "터널오븐", "데크오븐", "발효기", "이가데치기"]} 
+        st.session_state.eq_counts = {room: {eq: 0 for eq in ["로타리 오븐", "터널 오븐", "데크 오븐", "발효기"]} 
                                      for room, info in st.session_state.rooms.items() if info['has_heat']}
 
     # --- [5. 사이드바: 설정창] ---
     st.sidebar.title("🏢 신세계푸드 관리 보조창")
     if st.sidebar.button("로그아웃"):
         st.session_state.logged_in = False
-        st.session_state.analysis_done = False # 로그아웃 시 분석 상태도 초기화
+        st.session_state.analysis_done = False
         st.rerun()
 
     for room_name, info in st.session_state.rooms.items():
@@ -94,6 +95,7 @@ if check_login():
             info['height'] = st.number_input(f"높이(m)", 0.0, 10.0, float(info['height']), key=f"h_{room_name}")
             info['target'] = st.number_input(f"목표온도(℃)", -50.0, 50.0, float(info['target']), key=f"t_{room_name}")
             
+            # 열원 설비가 있는 실만 입력창 노출
             if info['has_heat']:
                 st.write("**🔥 설비 대수 입력**")
                 for eq_type in st.session_state.eq_counts[room_name]:
@@ -106,31 +108,25 @@ if check_login():
     
     col_btn, col_reset = st.columns([5, 1])
     with col_btn:
-        # 버튼을 누르면 분석 플래그를 True로 변경
         if st.button("▶ 통합 데이터 분석 및 UC 자동 배치 실행", use_container_width=True, type="primary"):
             st.session_state.analysis_done = True
-            
     with col_reset:
         if st.button("🔄 결과 초기화", use_container_width=True):
             for r in st.session_state.eq_counts:
                 for e in st.session_state.eq_counts[r]: st.session_state.eq_counts[r][e] = 0
-            st.session_state.analysis_done = False # 결과 초기화 시 수치 0화
+            st.session_state.analysis_done = False
             st.rerun()
 
     st.divider()
 
-    # 리포트 데이터 생성
+    # 리포트 생성
     report_list = []
-    heat_map = {"로터리오븐": 1500, "터널오븐": 1800, "데크오븐": 1200, "발효기": 400, "이가데치기": 800}
+    heat_map = {"로타리 오븐": 1500, "터널 오븐": 1800, "데크 오븐": 1200, "발효기": 400}
 
     for name, info in st.session_state.rooms.items():
         vol = info['area'] * PYEONG_TO_M2 * info['height']
-        
-        # 분석 실행 전에는 모든 산출값을 0으로 고정
         if not st.session_state.analysis_done:
-            required_rt = 0.0
-            uc_cap = 0.0
-            uc_count = 0
+            required_rt, uc_cap, uc_count = 0.0, 0.0, 0
         else:
             active_heat = sum([st.session_state.eq_counts[name][eq] * heat_map[eq] for eq in heat_map]) if info['has_heat'] else 0
             required_rt = ((vol * (30 - info['target']) * 40) + active_heat) / RT_KCAL if vol > 0 else 0
@@ -144,7 +140,6 @@ if check_login():
     st.subheader("📊 정밀 분석 리포트")
     st.table(pd.DataFrame(report_list).drop(columns=['raw_rt']))
 
-    # 그래프는 추세 확인용이므로 상시 노출 (또는 필요 시 이것도 analysis_done에 연동 가능)
     st.subheader("📈 09:00~18:00 실별 온도 변화 추이")
     chart_data = pd.DataFrame(index=[f"{h:02d}:00" for h in range(9, 19)])
     for name, info in st.session_state.rooms.items():
@@ -152,16 +147,12 @@ if check_login():
         chart_data[name] = [round(info['target'] + (eq_sum * 1.5 if h != 12 else 0.5) + np.random.uniform(-0.1, 0.1), 1) for h in range(9, 19)]
     st.line_chart(chart_data)
 
-    # 도면 및 UC 배치
+    # --- [7. 도면 업로드 및 UC 배치 시각화] ---
     st.divider()
     st.subheader("🖼️ 도면 기반 UC 자동 배치 뷰")
-    with st.expander("📂 도면 레이어 통합 업로드", expanded=True):
-        col_f1, col_f2, col_f3 = st.columns(3)
-        with col_f1: f1 = st.file_uploader("1차: 구역 도면", type=['jpg','png','pdf'], key="up1")
-        with col_f2: f2 = st.file_uploader("2차: 온도/명칭", type=['jpg','png','pdf'], key="up2")
-        with col_f3: f3 = st.file_uploader("3차: 설비 배치", type=['jpg','png','pdf'], key="up3")
+    uploaded_file = st.file_uploader("분석할 도면 파일을 업로드해 주세요 (PDF/JPG/PNG)", type=['jpg','png','pdf'])
 
-    img_base = load_drawing_file(f3) or load_drawing_file(f2) or load_drawing_file(f1)
+    img_base = load_drawing_file(uploaded_file)
 
     if img_base and st.session_state.analysis_done:
         drawn_img = img_base.copy()
@@ -169,15 +160,15 @@ if check_login():
         for room_res in report_list:
             name = room_res['공간']
             info = st.session_state.rooms[name]
-            # 실제 분석 결과값으로 그리기
             u_cap, u_cnt = select_uc_specs(room_res['raw_rt'])
             if u_cnt > 0:
                 for c in range(u_cnt):
                     ox, oy = info['x'] + (c * 35), info['y']
-                    draw.rectangle([ox-15, oy-15, ox+15, oy+15], fill=(0, 0, 255, 180))
-        st.image(drawn_img, caption="분석 완료 및 UC 자동 배치", use_container_width=True)
+                    # 파란색 유니트쿨러 아이콘 그리기
+                    draw.rectangle([ox-15, oy-15, ox+15, oy+15], fill=(0, 0, 255, 180), outline="white")
+        st.image(drawn_img, caption="분석 완료 및 UC 자동 배치 결과", use_container_width=True)
         st.balloons()
     elif img_base:
-        st.image(img_base, caption="도면이 업로드되었습니다. 분석 실행 버튼을 누르세요.", use_container_width=True)
+        st.image(img_base, caption="업로드된 도면입니다. 상단의 분석 실행 버튼을 누르세요.", use_container_width=True)
     else:
-        st.info("도면을 업로드하고 분석 실행 버튼을 누르세요.")
+        st.info("도면을 업로드하고 분석 실행 버튼을 누르면 UC가 자동으로 배치됩니다.")
