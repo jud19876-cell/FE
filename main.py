@@ -17,14 +17,15 @@ def check_login():
         st.session_state.logged_in = False
 
     if not st.session_state.logged_in:
-        st.markdown("<br><br>", unsafe_allow_value=True)
+        # ⭐ 이 부분의 오타를 수정했습니다: unsafe_allow_html=True
+        st.markdown("<br><br>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
             st.title("🔒 시스템 접속")
             auth_id = st.text_input("아이디(ID)")
             auth_pw = st.text_input("비밀번호(Password)", type="password")
             
-            # ⭐ 여기서 아이디와 비밀번호를 설정하세요!
+            # 여기서 아이디와 비밀번호를 설정하세요!
             if st.button("로그인", use_container_width=True):
                 if auth_id == "admin" and auth_pw == "shinsegae123":
                     st.session_state.logged_in = True
@@ -90,7 +91,6 @@ if check_login():
             info['height'] = st.number_input(f"높이(m)", 0.0, 10.0, float(info['height']), key=f"h_{room_name}")
             info['target'] = st.number_input(f"목표온도(℃)", -50.0, 50.0, float(info['target']), key=f"t_{room_name}")
             
-            # 요청하신 대로 열원이 없는 실은 설비 칸을 뺌
             if info['has_heat']:
                 st.write("**🔥 설비 대수 입력**")
                 for eq_type in st.session_state.eq_counts[room_name]:
@@ -105,14 +105,13 @@ if check_login():
     with col_btn:
         run_analysis = st.button("▶ 통합 데이터 분석 및 UC 자동 배치 실행", use_container_width=True, type="primary")
     with col_reset:
-        if st.button("🔄 설정 초기화", use_container_width=True):
+        if st.button("🔄 결과 초기화", use_container_width=True):
             for r in st.session_state.eq_counts:
                 for e in st.session_state.eq_counts[r]: st.session_state.eq_counts[r][e] = 0
             st.rerun()
 
     st.divider()
 
-    # 분석 리포트
     report_list = []
     heat_map = {"로터리오븐": 1500, "터널오븐": 1800, "데크오븐": 1200, "발효기": 400, "이가데치기": 800}
 
@@ -130,7 +129,6 @@ if check_login():
     st.subheader("📊 정밀 분석 리포트")
     st.table(pd.DataFrame(report_list).drop(columns=['raw_rt']))
 
-    # 그래프
     st.subheader("📈 09:00~18:00 실별 온도 변화 추이")
     chart_data = pd.DataFrame(index=[f"{h:02d}:00" for h in range(9, 19)])
     for name, info in st.session_state.rooms.items():
@@ -138,7 +136,6 @@ if check_login():
         chart_data[name] = [round(info['target'] + (eq_sum * 1.5 if h != 12 else 0.5) + np.random.uniform(-0.1, 0.1), 1) for h in range(9, 19)]
     st.line_chart(chart_data)
 
-    # 도면 및 UC 배치
     st.divider()
     st.subheader("🖼️ 도면 기반 UC 자동 배치 뷰")
     with st.expander("📂 도면 레이어 통합 업로드", expanded=True):
@@ -160,9 +157,7 @@ if check_login():
                 for c in range(u_cnt):
                     ox, oy = info['x'] + (c * 35), info['y']
                     draw.rectangle([ox-15, oy-15, ox+15, oy+15], fill=(0, 0, 255, 180))
-        st.image(drawn_img, caption="UC가 자동으로 배치된 도면입니다.", use_container_width=True)
+        st.image(drawn_img, caption="분석 완료 및 UC 자동 배치", use_container_width=True)
         st.balloons()
     elif img_base:
-        st.image(img_base, caption="업로드된 도면입니다. 분석 실행을 눌러 UC를 배치하세요.", use_container_width=True)
-    else:
-        st.info("도면을 업로드하고 분석 실행 버튼을 누르세요.")
+        st.image(img_base, use_container_width=True)
